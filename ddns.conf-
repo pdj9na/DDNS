@@ -1,0 +1,16 @@
+#引号里改成申请的AccessKeyId
+AccessKey="***"
+
+#引号里改成申请的Access Key Secret
+AccessSecret="***"
+
+# 域名后缀，提供商的域名
+DN_suffix='xxx.top'
+
+# 记录更新后生效的最大延迟
+TTL="600"
+
+# DNS 域名解析指定DNS，采用域名解析服务提供商的DNS最好，指定其他DNS如114，更新会有延迟
+# DNSDN='dns3.hichina.com'
+# 114DNS虽然更新有延迟，但是问题少，可能是 DNSDN 再经过一次域名解析的原因，或者是服务器停机了？
+DNSDN='114.114.114.114'
