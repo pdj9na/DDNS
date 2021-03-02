@@ -1,28 +1,12 @@
 #!/bin/bash
 
 # [ -z "$DIR" ] && DIR=$(dirname $(readlink -f $0)) && [ "${DIR:0-1}" != '/' ] && DIR=$DIR/
-[ -z "$DIR" ] && { DIR=$(readlink -f $0);DIR=${DIR%/*}/; }
+[ -z "$DIR" ] && { DIR=$(readlink -f $0);DIR=${DIR%/*}; }
 
-. ${DIR}aliddns.sh
+# 日志文件截断后保留的最大行数
+LOGFILE_TRUNCATE_LATER_RETAIN_LINE_COUNT=500
 
-###更新路由器br-lan、pppoe-wan的动态域名IPv6
-updateDomainNameFromRouter(){
-# echo "$@"
-# echo "$*"
-echo -e "\n=============更新路由器================"
-local item iface
-# $@ 使用时加引号，并在引号中返回每个参数
-for item in "$@";do
-	unset iface DN_prefix
-	eval `echo $item | awk '{printf("iface=%s;DN_prefix=%s",$1,$2)}'`
-	# echo "$item | $iface | $DN_prefix"
-	#要更新的IPv6地址
-	[ -n "$iface" ] && ip_local=`ip -6 addr show $iface | grep -E '\s*?inet6 2\S*? scope global ' | awk -F' +|/' '{print $3}'`
-	#更新DNS异步执行容易导致下一条执行失败，同步执行要好一些，最好延迟一点时间，aliddns_core.sh中执行更新操作前sleep 1
-	[ -n "$ip_local" -a -n "$DN_prefix" ] && run
-done
-
-}
+export LOGFILE_NAME=log_ddns.log
 
 get_prefix(){
 
@@ -38,6 +22,26 @@ while [ -z "$prefix" -a $count -le 120 ];do
 	[ -z "$prefix" ] && sleep 1 && ((++count))
 done
 [ -z "$prefix" ] && return 1 || return 0
+}
+
+
+###更新路由器br-lan、pppoe-wan的动态域名IPv6
+updateDomainNameFromRouter(){
+# echo "$@"
+# echo "$*"
+echo -e "\n=============更新路由器================"
+local item iface
+# $@ 使用时加引号，并在引号中返回每个参数
+for item in "$@";do
+	unset iface DN_prefix
+	eval `echo $item | awk '{printf("iface=%s;DN_prefix=%s",$1,$2)}'`
+	# echo "$item | $iface | $DN_prefix"
+	#要更新的IPv6地址
+	[ -n "$iface" ] && ip_local=`ip -6 addr show $iface | grep -E '\s*?inet6 2\S*? scope global ' | awk -F' +|/' '{print $3}'`
+	#更新DNS异步执行容易导致下一条执行失败，同步执行要好一些，最好延迟一点时间，aliddns_core.sh中执行更新操作前sleep 1
+	[ -n "$ip_local" -a -n "$DN_prefix" ] && $DIR/aliddns.sh $ip_local $DN_prefix
+done
+
 }
 
 updateDomainNameFromRearHost(){
@@ -121,7 +125,7 @@ while read -r line;do
 			echo -e "\n------更新DNS-------"
 			#这里的$IFS等同于$'\n'
 			for DN_prefix in ${records//,/$IFS};do
-				[ -n "$DN_prefix" ] && run
+				[ -n "$DN_prefix" ] && $DIR/aliddns.sh $ip_local $DN_prefix
 			done
 		fi
 	else
@@ -137,11 +141,20 @@ while read -r line;do
 #对于无状态，由于可管理性和简洁性不如有状态，就优先采用有状态了
 #对于安卓原生不支持有状态的情况，可以通过安装应用（如DHCPv6 Client）来解决，不过需要root权限
 
-done < ${DIR}ddns_record.txt
+done < $DIR/ddns_record.txt
 
 }
 
+
 get_prefix && {
-updateDomainNameFromRouter 'br-lan router' 'pppoe-wan pppoe-wan.router' # 'br-lan @' 'br-lan *'
-updateDomainNameFromRearHost
+	echo -e '\n'====$(date "+%Y-%m-%d %H:%M:%S") >>$DIR/$LOGFILE_NAME
+	updateDomainNameFromRouter 'br-lan router' 'pppoe-wan pppoe-wan.router' # 'br-lan @' 'br-lan *'
+	updateDomainNameFromRearHost
+
+	# 截断日志文件为不超过指定行数
+	logFileLineCount=`[ -f $DIR/$LOGFILE_NAME ] && wc -l $DIR/$LOGFILE_NAME | awk '{print $1}' || echo 0`
+	# echo $logFileLineCount
+	logFileTruncateLineCount=$[logFileLineCount-LOGFILE_TRUNCATE_LATER_RETAIN_LINE_COUNT]
+	# echo $logFileTruncateLineCount
+	[ "$logFileTruncateLineCount" -gt 0 ] && sed -i '1,'$logFileTruncateLineCount'd' $DIR/$LOGFILE_NAME
 }
