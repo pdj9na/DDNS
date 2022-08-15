@@ -5,6 +5,10 @@ DDNS shell script,support aliyun
 
 ========
 
+配置路由器 DHCP/DNS，添加静态地址分配
+
+========
+
 编辑文件 /usr/sbin/odhcpd-update，在最后添加：
 
 {

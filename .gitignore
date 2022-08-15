@@ -1,3 +1,6 @@
 /*
+!.gitignore
 !*.sh
 !*.conf-
+!LICENSE
+!README.md

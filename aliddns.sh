@@ -4,15 +4,28 @@
 #引用基本参数
 . $DIR/ddns.conf
 
-enc() {
-	$DIR/urlencode.sh $1
+_ali_urlencode() {
+  local _str="$1"
+  local _str_len=${#_str}
+  local _u_i=0 _str_c
+  while [ "$_u_i" -lt "$_str_len" ]; do
+    _str_c=${_str:$_u_i:1}
+    case $_str_c in [a-zA-Z0-9.~_-])
+      printf "%s" "$_str_c"
+      ;;
+    *)
+      printf "%%%02X" "'$_str_c"
+      ;;
+    esac
+	((++_u_i))
+  done
 }
 
 send_request() {
     local args="AccessKeyId=$AccessKey&Action=$1&Format=json&$2&Version=2015-01-09"
-    local hash=$(echo -n "GET&%2F&$(enc "$args")" | openssl dgst -sha1 -hmac "$AccessSecret&" -binary | openssl base64)
-#echo -n "GET&%2F&$(enc "$args")"
-    curl -s "http://alidns.aliyuncs.com/?$args&Signature=$(enc "$hash")"
+    local hash=$(echo -n "GET&%2F&$(_ali_urlencode "$args")" | openssl dgst -sha1 -hmac "$AccessSecret&" -binary | openssl base64)
+#echo -n "GET&%2F&$(_ali_urlencode "$args")"
+    curl -s "http://alidns.aliyuncs.com/?$args&Signature=$(_ali_urlencode "$hash")"
 }
 
 query_recordid() {
@@ -20,11 +33,11 @@ query_recordid() {
 }
 
 update_record() {
-    send_request "UpdateDomainRecord"        "RR=$DN_prefix&RecordId=$1&SignatureMethod=HMAC-SHA1&SignatureNonce=$timestamp&SignatureVersion=1.0&TTL=$TTL&Timestamp=$timestamp&Type=AAAA&Value=$(enc $ip_local)"
+    send_request "UpdateDomainRecord"        "RR=$DN_prefix&RecordId=$1&SignatureMethod=HMAC-SHA1&SignatureNonce=$timestamp&SignatureVersion=1.0&TTL=$TTL&Timestamp=$timestamp&Type=AAAA&Value=$(_ali_urlencode $ip_local)"
 }
 
 add_record() {
-    send_request "AddDomainRecord&DomainName=$DN_suffix" "RR=$DN_prefix&SignatureMethod=HMAC-SHA1&SignatureNonce=$timestamp&SignatureVersion=1.0&TTL=$TTL&Timestamp=$timestamp&Type=AAAA&Value=$(enc $ip_local)"
+    send_request "AddDomainRecord&DomainName=$DN_suffix" "RR=$DN_prefix&SignatureMethod=HMAC-SHA1&SignatureNonce=$timestamp&SignatureVersion=1.0&TTL=$TTL&Timestamp=$timestamp&Type=AAAA&Value=$(_ali_urlencode $ip_local)"
 }
 
 get_recordid() {
@@ -42,9 +55,9 @@ timestamp=`date -u "+%Y-%m-%dT%H%%3A%M%%3A%SZ"`
 DN=$DN_suffix
 #不支持添加直接解析主域名@
 #@需要url编码两次，获得%2540,@的url编码一次是%40，不符合阿里云要求的%2540，*的url编码是%2A
-[ $DN_prefix = '@' ] && DN_prefix=$(enc $DN_prefix) || DN=$DN_prefix.$DN
+[ $DN_prefix = '@' ] && DN_prefix=$(_ali_urlencode $DN_prefix) || DN=$DN_prefix.$DN
 # 经测试*也需要编码两次，且需要添加到 DN
-[ $DN_prefix = '*' ] && DN_prefix=$(enc $DN_prefix)
+[ $DN_prefix = '*' ] && DN_prefix=$(_ali_urlencode $DN_prefix)
 
 # echo $DN'---'$DN_prefix
 echo -e "\n主机记录:$DN"
@@ -54,9 +67,11 @@ echo -e "\n主机记录:$DN"
 # dnsmasq解析可能会有问题，还容易出现 Parse error，所以指定DNS解析，最好指定域名解析服务DNS
 local ip_FromDNS count=0
 echo "" >>$DIR/$LOGFILE_NAME
+
+DNE=$(sed -E 's/\./\\&/g' <<<$DN)
 while [ -z "$ip_FromDNS" -a $count -le 10 ];do
 	echo ">>>>>>nslookup<<<<<<<<<<" >>$DIR/$LOGFILE_NAME
-	ip_FromDNS=`echo $(nslookup -qt=AAAA "$DN" "$DNSDN" 2>>$DIR/$LOGFILE_NAME) | awk -F'has\\\sAAAA\\\saddress\\\s' '{print $2}'`
+	ip_FromDNS=$(nslookup -qt=AAAA $DN $DNSDN 2>>$DIR/$LOGFILE_NAME | sed -E 's/'$DNE'\s+/&\n/g' | sed '1,/'$DNE'/d' | awk '{print $NF}')
 	[ -z "$ip_FromDNS" ] && sleep $((++count))
 done
 
@@ -65,8 +80,8 @@ printf "DNS记录IP地址>%-23s	本地IP地址>%-23s\n" $ip_FromDNS $ip_local
 printf ">>域名：$DN<< 从 $DNSDN 解析：\n" >>$DIR/$LOGFILE_NAME
 printf "DNS记录IP地址>%-23s	本地IP地址>%-23s\n" $ip_FromDNS $ip_local >>$DIR/$LOGFILE_NAME
 
-#if [ "$ip_local" = "$ip_FromDNS" ];then
-if false;then
+if [ "$ip_local" = "$ip_FromDNS" ];then
+#if false;then
 	echo "skipping"
 	echo skipping >>$DIR/$LOGFILE_NAME
 else
