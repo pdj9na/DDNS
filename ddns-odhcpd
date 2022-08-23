@@ -1,0 +1,26 @@
+#!/bin/sh /etc/rc.common
+# Copyright (C) 2006 OpenWrt.org
+START=34
+STOP=86
+
+mnts=/var/run/odhcpd-update-ddns
+mntp=/usr/sbin/odhcpd-update
+
+# mountpoint 命令在软件包 mount-utils 中，需要安装
+# opkg install mount-utils
+
+start() {
+	if ! mountpoint -q $mntp 2>/dev/null;then
+		cat $mntp >$mnts
+		echo "/root/DDNS/updateDNS_ARPv6.sh &" >>$mnts
+		
+		chmod +x $mnts
+		mount -o bind $mnts $mntp
+	fi
+}
+
+stop() {
+	while mountpoint -q $mntp 2>/dev/null;do
+		umount -lf $mntp	
+	done
+}

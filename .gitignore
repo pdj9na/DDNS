@@ -1,6 +1,6 @@
 /*
 !.gitignore
 !*.sh
-!*.conf-
-!LICENSE
-!README.md
+!/ddns-odhcpd
+!/LICENSE
+!/README.md
