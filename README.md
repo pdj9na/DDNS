@@ -3,17 +3,8 @@ DDNS shell script,support aliyun
 
 用于OpenWrt 路由器，需安装 bash mount-utils
 
+执行 install.sh 完成初始化
 
-# ============== /etc/init.d/ddns-odhcpd ==============
-
-chmod +x /root/DDNS/ddns-odhcpd
-ln -sf /root/DDNS/ddns-odhcpd /etc/init.d/ddns-odhcpd
-
-/etc/init.d/ddns-odhcpd enable
-
-# 检查是否挂载：
-mountpoint /usr/sbin/odhcpd-update
-less /usr/sbin/odhcpd-update
 
 # ============= /etc/config/ddns-odhcpd ================
 
@@ -49,12 +40,11 @@ config wan
 	option records 'wan-router'
 	
 # 下位机 公网 IPv6
-# 需分配静态地址
 
 config host
 	option mac '***'					# mac 地址
 	option records '***'
-	option neigh_nud ''			# 可能的值有： STALE（过期，默认的）、REACHABLE（可达）、PERMANENT（永久）
+	option neigh_nud 'permanent'		# 可能的值有： stale（过期，默认的）、reachable（可达）、permanent（永久），这里必须全小写
 
 	
 

@@ -1,8 +1,4 @@
 #!/bin/bash
-#[ -z "$DIR" ] && { DIR=$(readlink -f $0);DIR=${DIR%/*}; }
-#[ -z "$LOGFILE_NAME" ] && LOGFILE_NAME=log.log
-#引用基本参数
-#. $DIR/ddns.conf
 
 _ali_urlencode() {
   local _str="$1"
@@ -52,8 +48,6 @@ get_recordid() {
 run(){
 local ip_local=$1 DN_prefix=$2
 
-local timestamp=`date -u "+%Y-%m-%dT%H%%3A%M%%3A%SZ"`
-
 local DN=$DN_suffix
 #不支持添加直接解析主域名@
 #@需要url编码两次，获得%2540,@的url编码一次是%40，不符合阿里云要求的%2540，*的url编码是%2A
@@ -89,9 +83,10 @@ if [ "$ip_local" = "$ip_FromDNS" ];then
 	echo skipping >>$LOGFILE_PATH
 else
 	local RecordId
-	count=0
 	local delaytime=0
+	local timestamp=`date -u "+%Y-%m-%dT%H%%3A%M%%3A%SZ"`
 	# 尝试几次 ，确定记录是否存在，所以如果是新增记录，要延迟几秒
+	count=0
 	while [ -z "$RecordId" -a $((++count)) -le 2 ];do
 		echo ">>>>>>query_recordid<<<<<<<<<<" >>$LOGFILE_PATH
 		RecordId=`query_recordid $timestamp $DN 2>>$LOGFILE_PATH | get_recordid`

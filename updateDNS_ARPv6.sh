@@ -29,7 +29,8 @@ for ifacetype in lan wan;do
 		test -z "$iface" -o -z "$records" && continue
 		
 		#要更新的IPv6地址
-		ip_local=`ip -6 addr show $iface 2>/dev/null | grep -E '\s*?inet6 2\S*? scope global ' | awk -F'\\\s+|/' '{print $3}'`
+		# 需要排除： scope global deprecated dynamic noprefixroute
+		ip_local=`ip -6 addr show $iface 2>/dev/null | grep -E '\s*?inet6 2\S*? scope global dynamic ' | awk -F'\\\s+|/' '{print $3}'`
 		
 		if [ -n "$ip_local" ];then
 			for record in $records;do
@@ -99,20 +100,26 @@ while uci -q get ddns-odhcpd.@host[$((++index2))] >/dev/null;do
 			#筛选并截取地址
 			eval `grep -i "$mac" <<<"$neigh_ipv6s" | awk '{printf("neigh_ipv6=%s;neigh_state=%s",$1,$6)}'`
 			echo -e "\n----更新ARPv6-------\n原邻居IPv6>$neigh_ipv6 原邻居状态> $neigh_state" >$STDOUT
-
+			
+			if [ -z "$neigh_ipv6" ];then
+				# 可能存在无 mac 地址的记录，但该记录的 IP 地址却与 $ip_local 相同
+				eval `grep "$ip_local" <<<"$neigh_ipv6s" | awk '{printf("neigh_ipv6=%s;neigh_state=",$1)}'`
+			fi
+			
 			if [ -n "$neigh_ipv6" -a "$neigh_ipv6" != "$ip_local" ];then
 				echo "0-删除旧的IPv6与新IPv6不匹配的网上邻居" >$STDOUT
 				ip -6 neigh del $neigh_ipv6 dev ${prefix_from_iface:-br-lan}
+				neigh_ipv6=
 			fi
-
-			if [ -z "$neigh_ipv6" -o "$neigh_ipv6" != "$ip_local" ];then
-				echo "1-添加IPv6网上邻居为 $neigh_nud 状态" >$STDOUT
-				ip neigh add $ip_local lladdr $mac nud $neigh_nud dev ${prefix_from_iface:-br-lan}
-			elif [ "$neigh_ipv6" = "$ip_local" ];then
+			
+			if [ -z "$neigh_ipv6" ];then
+				echo "1-添加IPv6网上邻居为 ${neigh_nud^^} 状态" >$STDOUT
+				ip -6 neigh add $ip_local lladdr $mac nud $neigh_nud dev ${prefix_from_iface:-br-lan}
+			else
 				echo "2-网上邻居旧的IPv6地址与新的IPv6地址一致" >$STDOUT
-				if [ "$neigh_state" != "$neigh_nud" ];then
-					echo "3-网上邻居旧的IPv6更改为 $neigh_nud 状态" >$STDOUT
-					ip neigh change $ip_local lladdr $mac nud $neigh_nud dev ${prefix_from_iface:-br-lan}
+				if [ "$neigh_state" != "${neigh_nud^^}" ];then
+					echo "3-网上邻居旧的IPv6更改为 ${neigh_nud^^} 状态" >$STDOUT
+					ip -6 neigh change $ip_local lladdr $mac nud $neigh_nud dev ${prefix_from_iface:-br-lan}
 				fi
 			fi
 			ip -6 neigh show | grep -E '^2\S*? dev '${prefix_from_iface:-br-lan}' .*?'$mac  >$STDOUT
@@ -152,6 +159,12 @@ DIR=$(readlink -f $0)
 DIR=${DIR%/*}
 
 
+test ! -r /etc/config/ddns-odhcpd && {
+	echo "不存在配置文件，请执行 install.sh，并编辑 /etc/config/ddns-odhcpd"
+	exit 0
+}
+
+
 AccessKey=$(uci -q get ddns-odhcpd.globals.AccessKey)
 AccessSecret=$(uci -q get ddns-odhcpd.globals.AccessSecret)
 DN_suffix=$(uci -q get ddns-odhcpd.globals.DN_suffix)
@@ -172,8 +185,8 @@ LOGFILE_PATH=/dev/null
 STDOUT=/dev/null
 if test "$log_quient" != 1;then
 	LOGFILE_PATH=$DIR/log_ddns.log
-	STDOUT=/dev/stdout
-	test ! -L $STDOUT && ln -sf /proc/self/fd/1 $STDOUT
+	STDOUT=/proc/self/fd/1
+	#test ! -L $STDOUT && ln -sf /proc/self/fd/1 $STDOUT
 fi
 
 
@@ -187,9 +200,9 @@ if test -n "$prefix";then
 	updateDomainNameFromRouter
 	updateDomainNameFromRearHost
 	
-	wait
 	
 	if test "$log_quient" != 1;then
+		wait
 		# 截断日志文件为不超过指定行数
 		logFileLineCount=`[ -r $LOGFILE_PATH ] && wc -l $LOGFILE_PATH | awk '{print $1}' || echo 0`
 		# echo $logFileLineCount
