@@ -1,6 +1,6 @@
 /*
 !.gitignore
 !*.sh
-!/ddns-odhcpd
+!/odhcpd-ddns
 !/LICENSE
 !/README.md

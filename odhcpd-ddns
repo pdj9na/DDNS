@@ -3,16 +3,19 @@
 START=34
 STOP=86
 
+basescript=$(readlink -f "$initscript")
+
+_basedir=${basescript%/*}
+MAINEXEC=$_basedir/updateDNS_ARPv6.sh
+#MAINEXEC_ESCAPE=$(echo $MAINEXEC | sed 's|/|\\&|g')
+
 mnts=/var/run/odhcpd-update-ddns
 mntp=/usr/sbin/odhcpd-update
-
-# mountpoint 命令在软件包 mount-utils 中，需要安装
-# opkg install mount-utils
 
 start() {
 	if ! mountpoint -q $mntp 2>/dev/null;then
 		cat $mntp >$mnts
-		echo "/root/DDNS/updateDNS_ARPv6.sh &" >>$mnts
+		echo "$MAINEXEC &" >>$mnts
 		
 		chmod +x $mnts
 		mount -o bind $mnts $mntp
@@ -24,3 +27,7 @@ stop() {
 		umount -lf $mntp	
 	done
 }
+
+# mountpoint 命令在软件包 mount-utils 中，需要安装
+# opkg install mount-utils
+
