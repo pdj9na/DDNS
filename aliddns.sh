@@ -100,18 +100,13 @@ run(){
 	# 经测试*也需要编码两次，且需要添加到 DN
 	[ $DN_prefix = '*' ] && DN_prefix=$(_ali_urlencode $DN_prefix)
 
-	echo "" >>$LOGFILE_PATH
-
-
-	echo "记录：$DN_prefix" >$STDOUT
-
-	echo "要删除的记录 Value、ID 列表：" >$STDOUT
+	_echo "记录：$DN_prefix"
+	_echo "要删除的记录 Value、ID 列表："
 	
 	local RecordValueIds=`query_recordid $DN_prefix 2>>$LOGFILE_PATH | get_recordvalueid`
-	echo "$RecordValueIds" >$STDOUT
+	_echo "$RecordValueIds"
 	
-	
-	echo "其中排除要删除的记录 Value：$ip_local" >$STDOUT
+	_echo "其中排除要删除的记录 Value：$ip_local"
 	
 	local rvalue rid
 	local excludeRecordId
@@ -126,12 +121,12 @@ run(){
 	done <<<"$RecordValueIds"
 	
 	if test -z "$excludeRecordId";then
-		echo -e "已添加记录的 ID：\c" >$STDOUT
-		add_record $DN_prefix $ip_local 2>>$LOGFILE_PATH | get_recordid >$STDOUT
+		_echo "已添加记录的 ID：\c"
+		_echo `add_record $DN_prefix $ip_local 2>>$LOGFILE_PATH | get_recordid`
 	else
-		echo "记录已存在，不需要添加"
+		_echo "记录已存在，不需要添加"
 	fi
-	echo "" >$STDOUT
+	_echo ""
 }
 
 

@@ -16,10 +16,11 @@ config globals 'globals'
     option AccessSecret '***'			# 访问密钥
     option DN_suffix 'example.com'		# 域名服务提供商申请的域名
     option TTL '600'					# 记录更新后生效的最大延迟
-    option prefix_from_iface 'br-lan'	# 获取 IPv6 前缀的 接口名称，目前只考虑一个 LAN 的情况
+    option default_dhcpv6_interface 'lan'	# 默认 dhcpv6 接口；客户端未开机时，不能从 neigh 中获取 dev，所以需要在配置文件中指定
     option exec_async '1'				# 为 1 时异步执行
     option log_quient '1'				# 为 1 时不输出日志
-    option log_retain_linecount '500'	# 日志文件保留行数
+    option log_retain_linecount '300'	# 日志文件保留行数
+    option terminal_quient '1'			# 为 1 时不输出终端
 
 
 # 路由器 LAN 口公网 IPv6
@@ -37,8 +38,11 @@ config wan
 # 下位机 公网 IPv6
 
 config host
+    option dhcpv6_interface '***'		# dhcpv6 接口，若未设置，将采用全局配置中的 default_dhcpv6_interface
     option duid '***'					# dhcpv6 duid
     option mac '***'					# neigh mac ，如果 ip -6 neigh 也使用 duid 就不需要 mac 了；如果不设 mac，就不能设置 neigh
+	option router '0'					# 主机类型是否为路由（非 OpenWrt系统路由不能确保 neigh 是否为 router，需先验证），默认为 0；
+										#	客户端未开机时，neigh 中不存在该 mac 的记录，也就不能通过 neigh 确定客户端类型
     option records '***'
 	
 	
