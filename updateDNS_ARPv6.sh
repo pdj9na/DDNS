@@ -19,12 +19,9 @@ for ifacetype in lan wan;do
 		# OpenWrt 18.06+: scope global dynamic noprefixroute
 		# OpenWrt 17: scope global noprefixroute dynamic
 		
-		if test "${OS_VERSION%%.*}" -le 17;then
-			ip_local=`ip -6 addr show $iface 2>/dev/null | grep -E '\s*?inet6 2\S*? scope global noprefixroute dynamic ' | awk -F'\\\s+|/' '{print $3}'`
-		else
-			ip_local=`ip -6 addr show $iface 2>/dev/null | grep -E '\s*?inet6 2\S*? scope global dynamic noprefixroute ' | awk -F'\\\s+|/' '{print $3}'`
-		fi
-		#echo "===$iface===$ip_local======="
+		ip_local=`ip -6 addr show dev $iface to 2000::/4 dynamic noprefixroute 2>/dev/null | grep '^\s*inet6' | awk -F'\\\s+|/' '{print $3}'`
+		
+		_echo "======ip_local:$ip_local======="
 		if [ -n "$ip_local" ];then
 			for record in $records;do
 				if [ -n "$record" ];then
@@ -70,7 +67,7 @@ local index2=-1 ip_local ip_exists _reg_dhcpv6_device record _out_
 local neigh_nud=permanent
 
 #重试计数 前缀
-local count
+local count linesize
 
 while uci -q get $configName.@host[$((++index2))] >/dev/null;do
 	duid=$(uci -q get $configName.@host[$index2].duid)
@@ -84,26 +81,39 @@ while uci -q get $configName.@host[$((++index2))] >/dev/null;do
 
 	dhcpv6_device=$(uci -q get network.$dhcpv6_interface.device)
 	test -z "$dhcpv6_device" && continue
-	_reg_dhcpv6_device=$(sed 's|\.|\\&|g' <<<"$dhcpv6_device")
 	
 	if test -z "${device_ipv6prefix[$dhcpv6_device]}";then
+	
+	
+		# 在前缀更新时，以下命令可能会获取多条记录
+		_out_="$(ip -6 route show root 2000::/4 type unicast dev $dhcpv6_device)"
+		echo "ip route>> $_out_" >$STDOUT
+		echo "ip route>> $_out_" >>$LOGFILE_PATH
+		
 	
 		#读取路由公网IPv6前缀
 		#重试小于等于?就继续循环
 		_echo "获取路由 $dhcpv6_device device 公网 IPv6 前缀，重试时长120s\c "
 		count=-1
-		while [ -z "${device_ipv6prefix[$dhcpv6_device]}" -a $((++count)) -le 120 ];do
-			#grep -v via：排除下级路由器dhcp客户端路由
-			#grep "dev br-lan "：‘br-lan’的后面保留一个空格是为了完全匹配‘br-lan’，而不会匹配如‘br-lanxxxx...’这样的
-			device_ipv6prefix[$dhcpv6_device]=`ip -6 route | grep -E '^2\S*? dev '$_reg_dhcpv6_device' ' | awk -F/ '{print $1}'`
-			[ -z "${device_ipv6prefix[$dhcpv6_device]}" ] && sleep 1
+		linesize=0
+		
+		while [ "$linesize" -ne 1 -a $((++count)) -le 120 ];do
+			# 只有1行时才满足要求，更新触发时，可能会有2行
+			linesize=$(ip -6 route show root 2000::/4 type unicast dev $dhcpv6_device | wc -l)
+			[ "$linesize" -ne 1 ] && sleep 1
 		done
+		
+		if [ "$linesize" -eq 1 ];then
+			device_ipv6prefix[$dhcpv6_device]=$(ip -6 route show root 2000::/4 type unicast dev $dhcpv6_device | awk -F/ '{print $1}')
+		fi
+		
 		[ -z "${device_ipv6prefix[$dhcpv6_device]}" ] && {
 			_echo "；获取失败，继续下个客户端"
 			continue
 		} || {
 			_echo "；获取成功，前缀为 ${device_ipv6prefix[$dhcpv6_device]}"
 		}
+		
 	else
 		_echo "路由 $dhcpv6_device device 已获取公网 IPv6 前缀 ${device_ipv6prefix[$dhcpv6_device]}"
 	fi
@@ -136,7 +146,7 @@ while uci -q get $configName.@host[$((++index2))] >/dev/null;do
 			#获取2开头的网上邻居ipv6公网地址
 			#形式	2xxx:xxxx:xxxx:xxxx::xxxx dev br-lan lladdr xx:xx:xx:xx:xx:xx PERMANENT
 			#这一句获取数据中的MAC地址中包含的字母全部是小写
-			neigh_ipv6s=`ip -6 neigh show | grep -E '^2\S*? dev '$_reg_dhcpv6_device' '`
+			neigh_ipv6s=`ip -6 neigh show to 2000::/4 dev $dhcpv6_device`
 			ip_exists=
 			_echo "\n-------更新ARPv6-------"
 			while read neigh_ipv6 neigh_router neigh_state;do
@@ -171,14 +181,14 @@ while uci -q get $configName.@host[$((++index2))] >/dev/null;do
 						_echo "状态已经不是 $neigh_router ${neigh_nud^^}"
 					fi
 				fi
-			done <<<"$(grep -iE "(\s+$mac|$ip_local)\s+" <<<"$neigh_ipv6s" | awk '{print $1,$((NF-1)),$NF}')"
+			done <<<"$(grep -iE "(\s+lladdr\s+$mac|^$ip_local)\s+" <<<"$neigh_ipv6s" | awk '{print $1,$((NF-1)),$NF}')"
 			
 			if test -z "$ip_exists";then
 				_echo "添加新的 IPv6（$ip_local）网上邻居为 $router ${neigh_nud^^} 状态"
 				ip -6 neigh add $ip_local lladdr $mac $router nud $neigh_nud dev $dhcpv6_device
 			fi
 			
-			_out_="$(ip -6 neigh show | grep -iE '^2\S*? dev '$_reg_dhcpv6_device' .*?'$mac)"
+			_out_="$(ip -6 neigh show to 2000::/4 dev $dhcpv6_device | grep -iE "(\s+lladdr\s+$mac|^$ip_local)\s+")"
 			echo "$_out_" >$STDOUT
 			echo "$_out_" >>$LOGFILE_PATH
 		else
