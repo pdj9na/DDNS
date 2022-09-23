@@ -2,5 +2,6 @@
 !.gitignore
 !*.sh
 !/odhcpd-ddns
+!/defaultconfig_odhcpd-ddns
 !/LICENSE
 !/README.md

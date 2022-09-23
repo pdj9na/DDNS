@@ -51,38 +51,18 @@ if test -f $SRVFULLNAME_S;then
 fi
 
 
-DIR=/etc/config
-
 # 初始配置
-if test ! -f $DIR/odhcpd-ddns;then
 
-	cat >$DIR/odhcpd-ddns<<-\EOF
+DIRC=/root/.config
 
-config globals 'globals'
-#	option dnsapi 'ali'
-#	option AccessKey '***'
-#	option AccessSecret '***'
-#	option DN_suffix 'example.com'
-#	option TTL '600'
-#	option DNSDN '114.114.114.114'
-#	option prefix_from_iface 'br-lan'
-#	option exec_async '1'
-#	option log_quient '1'
-#	option log_retain_linecount '500'
+mkdir -p $DIRC
 
-#config lan
-#	option iface 'br-lan'
-#	option records 'router'
-#
-#config wan
-#	option iface 'pppoe-wan'
-#	option records 'wan-router'
-#
-#config host
-#	option mac '***'
-#	option records '***'
-#	option neigh_nud 'permanent'
+if test ! -f $DIRC/odhcpd-ddns;then
+	cp -a $DIR/defaultconfig_odhcpd-ddns $DIRC/odhcpd-ddns
+fi
 
-EOF
+DIRC2=/etc/config
 
+if test "$(readlink -f $DIRC2/odhcpd-ddns)" != $DIRC/odhcpd-ddns;then
+	ln -sfT $DIRC/odhcpd-ddns $DIRC2/odhcpd-ddns
 fi

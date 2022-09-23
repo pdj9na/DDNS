@@ -99,12 +99,13 @@ while uci -q get $configName.@host[$((++index2))] >/dev/null;do
 		
 		while [ "$linesize" -ne 1 -a $((++count)) -le 120 ];do
 			# 只有1行时才满足要求，更新触发时，可能会有2行
-			linesize=$(ip -6 route show root 2000::/4 type unicast dev $dhcpv6_device | wc -l)
+			# 只取没有 expires 的行
+			linesize=$(ip -6 route show root 2000::/4 type unicast dev $dhcpv6_device | grep -v ' expires ' | wc -l)
 			[ "$linesize" -ne 1 ] && sleep 1
 		done
 		
 		if [ "$linesize" -eq 1 ];then
-			device_ipv6prefix[$dhcpv6_device]=$(ip -6 route show root 2000::/4 type unicast dev $dhcpv6_device | awk -F/ '{print $1}')
+			device_ipv6prefix[$dhcpv6_device]=$(ip -6 route show root 2000::/4 type unicast dev $dhcpv6_device | grep -v ' expires ' | awk -F/ '{print $1}')
 		fi
 		
 		[ -z "${device_ipv6prefix[$dhcpv6_device]}" ] && {

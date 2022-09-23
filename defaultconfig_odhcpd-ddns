@@ -1,0 +1,31 @@
+
+config globals 'globals'
+	option dnsapi 'ali'
+	option AccessKey '***'
+	option AccessSecret '***'
+	option DN_suffix 'example.com'
+	option TTL '600'
+	option default_dhcpv6_interface 'lan'
+	option exec_async '0'
+	option log_quient '0'
+	option log_retain_linecount '200'
+    option terminal_quient '1'
+
+config lan
+	option iface 'br-lan'
+	option records 'lan-router'
+
+config wan
+	option iface 'pppoe-wan'
+	option records 'wan-router'
+
+config host
+	option mac '***'
+	option records '***'
+	option neigh_nud 'permanent'
+
+
+config host
+    option duid '***'
+    option mac '***'
+    option records '***'
